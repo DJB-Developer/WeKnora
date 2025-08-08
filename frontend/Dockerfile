@@ -1,5 +1,5 @@
 # 构建阶段
-FROM node:20-alpine as build-stage
+FROM node:20-alpine AS build-stage
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # 生产阶段
-FROM nginx:stable-alpine as production-stage
+FROM nginx:stable-alpine AS production-stage
 
 # 复制构建产物到nginx服务目录
 COPY --from=build-stage /app/dist /usr/share/nginx/html
