@@ -28,15 +28,9 @@ jobs:
           - id: app
             context: .
             file: docker/Dockerfile.app
-            build-args: |
-              GOPRIVATE_ARG=${{ secrets.GOPRIVATE }}
-              GOPROXY_ARG=${{ secrets.GOPROXY }}
-              GOSUMDB_ARG=off
           - id: docreader
             context: .
             file: docker/Dockerfile.docreader
-            build-args: |
-              PLATFORM=linux/amd64
           - id: frontend
             context: ./frontend
             file: ./frontend/Dockerfile
@@ -79,7 +73,11 @@ jobs:
           file: ${{ matrix.file }}
           push: ${{ github.event_name == 'push' }}
           platforms: linux/amd64
-          build-args: ${{ matrix.build-args }}
+          build-args: |
+            ${{ matrix.id == 'app' && format('GOPRIVATE_ARG={0}', secrets.GOPRIVATE) || '' }}
+            ${{ matrix.id == 'app' && format('GOPROXY_ARG={0}', secrets.GOPROXY) || '' }}
+            ${{ matrix.id == 'app' && 'GOSUMDB_ARG=off' || '' }}
+            ${{ matrix.id == 'docreader' && 'PLATFORM=linux/amd64' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.id }}:buildcache
