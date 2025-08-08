@@ -24,6 +24,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - id: app
@@ -49,6 +50,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: false
+          large-packages: true
+          swap-storage: true
+
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
@@ -70,7 +82,7 @@ jobs:
             type=sha
 
       - name: Build (no push) for PR/dispatch
-        if: ${{ github.event_name != 'push' || (github.event_name == 'push' && !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))) }}
+        if: ${{ (github.event_name != 'push' || (github.event_name == 'push' && !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))) && matrix.id != 'docreader' }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -87,7 +99,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push for main/tags
-        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.id != 'docreader' }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -103,3 +115,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-${{ matrix.id }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-${{ matrix.id }}:buildcache,mode=max
+
+      # Docreader is extremely heavy; run only on demand via input or label in future
+      - name: Skip heavy docreader on PR/dispatch
+        if: ${{ matrix.id == 'docreader' }}
+        run: echo "Skipping docreader build to avoid runner disk exhaustion"
