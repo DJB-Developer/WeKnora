@@ -69,12 +69,30 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      - name: Build and (conditionally) push
+      - name: Build (no push) for PR/dispatch
+        if: ${{ github.event_name != 'push' || (github.event_name == 'push' && !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))) }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+          push: false
+          platforms: linux/amd64
+          build-args: |
+            ${{ matrix.id == 'app' && format('GOPRIVATE_ARG={0}', secrets.GOPRIVATE) || '' }}
+            ${{ matrix.id == 'app' && format('GOPROXY_ARG={0}', secrets.GOPROXY) || '' }}
+            ${{ matrix.id == 'app' && 'GOSUMDB_ARG=off' || '' }}
+            ${{ matrix.id == 'docreader' && 'PLATFORM=linux/amd64' || '' }}
+          tags: local/${{ matrix.id }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push for main/tags
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
           platforms: linux/amd64
           build-args: |
             ${{ matrix.id == 'app' && format('GOPRIVATE_ARG={0}', secrets.GOPRIVATE) || '' }}
@@ -83,5 +101,5 @@ jobs:
             ${{ matrix.id == 'docreader' && 'PLATFORM=linux/amd64' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}-{2}:buildcache', env.REGISTRY, env.IMAGE_NAME_LOWER, matrix.id) || 'type=gha' }}
-          cache-to: ${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}-{2}:buildcache,mode=max', env.REGISTRY, env.IMAGE_NAME_LOWER, matrix.id) || 'type=gha,mode=max' }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-${{ matrix.id }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-${{ matrix.id }}:buildcache,mode=max
